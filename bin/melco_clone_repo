@@ -1,0 +1,37 @@
+#!/bin/bash
+
+setup() {
+  local config_file=${HOME}/.clone_gerrit_repo.cfg
+  if [ -r $config_file ]; then
+    source $config_file
+  fi
+}
+
+clone() {
+  local project_name=$1
+  if [ "$project_name" = "" ];then
+    echo "Error: Please provide a project name"
+    return
+  fi
+  local list_of_projects=$(ssh -p ${GERRIT_PORT} ${GERRIT_USER_NAME}@${GERRIT_IP} gerrit ls-projects --match $project_name)
+
+  if [ "${list_of_projects}" = "" ]; then
+    echo "Error: Your match $project_name does not match any Gerrit projects"
+  elif [ $(echo "$list_of_projects" | wc -l) -gt 1 ]; then
+    local counter=1
+    while read -r p; do
+      echo $counter: $p
+      let counter=counter+1
+    done <<< "$list_of_projects"
+    echo "Select number of the project you want to clone:"
+    read -p "Input Selection:" input_selection
+    project_name=$(echo "${list_of_projects}" | sed -n ${input_selection}p)
+  fi
+  
+  local project_dest=$(basename ${project_name})
+  local apply_hook_cmd="scp -p -P ${GERRIT_PORT} ${GERRIT_USER_NAME}@${GERRIT_IP}:hooks/commit-msg ${project_dest}/.git/hooks/" 
+  git clone ssh://${GERRIT_USER_NAME}@${GERRIT_IP}:${GERRIT_PORT}/${project_name} ${project_dest} && ${apply_hook_cmd}
+}
+
+setup
+clone $1
